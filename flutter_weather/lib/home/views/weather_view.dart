@@ -3,6 +3,7 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:geolocator/geolocator.dart';
 import 'package:lottie/lottie.dart';
+import 'package:flutter_weather/home/data/weather_model.dart';
 
 class WeatherView extends StatefulWidget {
   const WeatherView({super.key});
@@ -12,9 +13,7 @@ class WeatherView extends StatefulWidget {
 }
 
 class _WeatherState extends State<WeatherView> {
-  String _city = '';
-  String _weather = 'sun';
-  String _temperature = '';
+  WeatherModel? _weatherModel;
 
   @override
   void initState() {
@@ -56,14 +55,18 @@ class _WeatherState extends State<WeatherView> {
   Future<void> _getAddressFromLatLng(double lat, double lon) async {
     final response = await http.get(
       Uri.parse(
-        'https://nominatim.openstreetmap.org/reverse?format=json&lat=$lat&lon=$lon&zoom=18&addressdetails=1',
+        '${WeatherModel.nominatimUrl}&lat=$lat&lon=$lon&zoom=18&addressdetails=1',
       ),
     );
 
     if (response.statusCode == 200) {
       final data = json.decode(response.body);
       setState(() {
-        _city = data['address']['city'] ?? 'Unknown';
+        _weatherModel = WeatherModel(
+          city: data['address']['city'] ?? 'Unknown',
+          temperature: _weatherModel?.temperature ?? '',
+          weatherCode: _weatherModel?.weatherCode ?? 'sun',
+        );
       });
     } else {
       throw Exception('Failed to load address');
@@ -72,26 +75,20 @@ class _WeatherState extends State<WeatherView> {
 
   Future<void> _getWeatherFromLatLng(double lat, double lon) async {
     final response = await http.get(
-      Uri.parse(
-        'https://api.open-meteo.com/v1/forecast?latitude=$lat&longitude=$lon&current_weather=true',
-      ),
+      Uri.parse('${WeatherModel.openMeteoUrl}&latitude=$lat&longitude=$lon'),
     );
 
     if (response.statusCode == 200) {
       final data = json.decode(response.body);
-      setState(() {
-        _temperature = data['current_weather']['temperature'].toString();
 
-        int weatherCode = data['current_weather']['weathercode'];
-        if (weatherCode == 0) {
-          _weather = 'sun';
-        } else if (weatherCode >= 1 && weatherCode <= 3) {
-          _weather = 'cloud';
-        } else if (weatherCode == 95) {
-          _weather = 'thunder'; 
-        } else {
-          _weather = 'cloud';
-        }
+      setState(() {
+        _weatherModel = WeatherModel(
+          city: _weatherModel?.city ?? 'Unknown',
+          temperature: data['current_weather']['temperature'].toString(),
+          weatherCode: WeatherModel.mapWeatherCodeToString(
+            data['current_weather']['weathercode'],
+          ),
+        );
       });
     } else {
       throw Exception('Failed to load weather');
@@ -102,12 +99,8 @@ class _WeatherState extends State<WeatherView> {
     switch (weather.toLowerCase()) {
       case 'cloud':
         return Lottie.asset('assets/img/cloud.json', width: 200, height: 200);
-      case 'half sun':
-        return Lottie.asset(
-          'assets/img/half_sun.json',
-          width: 200,
-          height: 200,
-        );
+      case 'halfsun':
+        return Lottie.asset('assets/img/halfsun.json', width: 200, height: 200);
       case 'thunder':
         return Lottie.asset('assets/img/thunder.json', width: 200, height: 200);
       case 'sun':
@@ -127,14 +120,14 @@ class _WeatherState extends State<WeatherView> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Text(
-              'Weather in $_city',
+              'Weather in ${_weatherModel?.city ?? 'Unknown'}',
               style: const TextStyle(fontSize: 24, color: Colors.white),
             ),
             const SizedBox(height: 20),
-            _getWeatherAnimation(_weather),
+            _getWeatherAnimation(_weatherModel?.weatherCode ?? 'sun'),
             const SizedBox(height: 20),
             Text(
-              'Temperature: $_temperature°C',
+              'Temperature: ${_weatherModel?.temperature ?? ''}°C',
               style: const TextStyle(fontSize: 18, color: Colors.white),
             ),
           ],
