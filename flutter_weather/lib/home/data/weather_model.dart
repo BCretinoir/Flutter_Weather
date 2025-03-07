@@ -32,8 +32,11 @@ class WeatherModel {
         return 'cloud';
       case 95:
         return 'thunder';
-      default:
+      case 96:
+      case 99:
         return 'halfsun';
+      default:
+        return 'sun';
     }
   }
 }

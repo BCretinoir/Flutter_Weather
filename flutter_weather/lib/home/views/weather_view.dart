@@ -1,12 +1,17 @@
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
-import 'package:geolocator/geolocator.dart';
 import 'package:lottie/lottie.dart';
 import 'package:flutter_weather/home/data/weather_model.dart';
+import 'package:flutter_weather/home/service/weather_service.dart';
 
 class WeatherView extends StatefulWidget {
-  const WeatherView({super.key});
+  final double latitude;
+  final double longitude;
+
+  const WeatherView({
+    super.key,
+    required this.latitude,
+    required this.longitude,
+  });
 
   @override
   State<WeatherView> createState() => _WeatherState();
@@ -14,85 +19,18 @@ class WeatherView extends StatefulWidget {
 
 class _WeatherState extends State<WeatherView> {
   WeatherModel? _weatherModel;
+  final WeatherService _weatherService = WeatherService();
 
   @override
   void initState() {
     super.initState();
-    _getCurrentLocation();
+    _initializeWeather();
   }
 
-  Future<void> _getCurrentLocation() async {
-    bool serviceEnabled;
-    LocationPermission permission;
-
-    serviceEnabled = await Geolocator.isLocationServiceEnabled();
-    if (!serviceEnabled) {
-      return Future.error('Location services are disabled.');
-    }
-
-    permission = await Geolocator.checkPermission();
-    if (permission == LocationPermission.denied) {
-      permission = await Geolocator.requestPermission();
-      if (permission == LocationPermission.denied) {
-        return Future.error('Location permissions are denied');
-      }
-    }
-
-    if (permission == LocationPermission.deniedForever) {
-      return Future.error(
-        'Location permissions are permanently denied, we cannot request permissions.',
-      );
-    }
-
-    Position position = await Geolocator.getCurrentPosition(
-      desiredAccuracy: LocationAccuracy.high,
-    );
-
-    _getAddressFromLatLng(position.latitude, position.longitude);
-    _getWeatherFromLatLng(position.latitude, position.longitude);
-  }
-
-  Future<void> _getAddressFromLatLng(double lat, double lon) async {
-    final response = await http.get(
-      Uri.parse(
-        '${WeatherModel.nominatimUrl}&lat=$lat&lon=$lon&zoom=18&addressdetails=1',
-      ),
-    );
-
-    if (response.statusCode == 200) {
-      final data = json.decode(response.body);
-      setState(() {
-        _weatherModel = WeatherModel(
-          city: data['address']['city'] ?? 'Unknown',
-          temperature: _weatherModel?.temperature ?? '',
-          weatherCode: _weatherModel?.weatherCode ?? 'sun',
-        );
-      });
-    } else {
-      throw Exception('Failed to load address');
-    }
-  }
-
-  Future<void> _getWeatherFromLatLng(double lat, double lon) async {
-    final response = await http.get(
-      Uri.parse('${WeatherModel.openMeteoUrl}&latitude=$lat&longitude=$lon'),
-    );
-
-    if (response.statusCode == 200) {
-      final data = json.decode(response.body);
-
-      setState(() {
-        _weatherModel = WeatherModel(
-          city: _weatherModel?.city ?? 'Unknown',
-          temperature: data['current_weather']['temperature'].toString(),
-          weatherCode: WeatherModel.mapWeatherCodeToString(
-            data['current_weather']['weathercode'],
-          ),
-        );
-      });
-    } else {
-      throw Exception('Failed to load weather');
-    }
+  Future<void> _initializeWeather() async {
+    await _weatherService.initialize(widget.latitude, widget.longitude);
+    _weatherModel = await _weatherService.getWeatherModel();
+    setState(() {});
   }
 
   Widget _getWeatherAnimation(String weather) {
